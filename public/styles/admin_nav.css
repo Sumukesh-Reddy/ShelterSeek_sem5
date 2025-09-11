@@ -201,9 +201,9 @@ body {
 }
 
 /* Mobile Styles */
-@media (max-width: 48rem) { /* 768px converted to rem */
+@media (max-width: 48rem) {
     .navbar {
-        padding: 1rem; /* Relative padding */
+        padding: 1rem; 
     }
 
     .navbar .container {
