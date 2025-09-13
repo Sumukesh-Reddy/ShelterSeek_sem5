@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Room Details</title>
+    <link rel="stylesheet" href="/styles/sumukesh_traveler.css">
+    <link rel="stylesheet" href="/styles/sumukesh_room_layout.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+</head>
+<body>
+    <%- include ('partials/header') %>
+     
+    <main id="home-details" class="room-details-container">
+       
+    </main>
+     
+    
+    <div class="help">
+        <a href="/help_index">
+            <i class="fa fa-commenting-o" aria-hidden="true" id="help-icon"></i>
+            <br>
+            <span>&nbsp;&nbsp;&nbsp;Help</span>
+        </a>
+    </div>
+   
+    
+    <div id="room-map" style="height: 400px; width: 100%;"></div>
+
+    
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script type="module" src="/scripts/sumukesh_layout.js"></script>
+    
+</body>
+<footer>
+    <%- include('partials/footer') %>
+</footer>
+</html>
