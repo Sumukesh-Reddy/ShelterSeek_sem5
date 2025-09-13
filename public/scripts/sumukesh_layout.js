@@ -15,7 +15,7 @@ function showErrorMessage(message) {
   // Fetch all rooms from API
   async function fetchRooms() {
     try {
-      const response = await fetch('http://localhost:3000/api/rooms');
+      const response = await fetch('/api/rooms');
       
       if (!response.ok) {
         throw new Error(`API request failed with status ${response.status}`);
