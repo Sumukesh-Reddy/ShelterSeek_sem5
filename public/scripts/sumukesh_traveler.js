@@ -217,6 +217,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     maxVal.value = this.value;
     updateSlider();
   });
+   
 });
 // Initialize the map (centered on a default location, e.g., Chennai)
 const map = L.map('map').setView([13.0827, 80.2707], 10);
@@ -456,3 +457,108 @@ const explorerOpen = document.getElementById("explorer-open");
       explorerModal.style.display = "none";
     }
   });
+
+  
+
+document.addEventListener("DOMContentLoaded", function() {
+
+  const testimonialCards = document.querySelectorAll('.testimonial-card');
+  
+  const testimonialModal = document.createElement('div');
+  testimonialModal.id = 'testimonial-modal';
+  testimonialModal.className = 'modal';
+  testimonialModal.innerHTML = `
+    <div class="modal-content">
+      <span class="close-button">&times;</span>
+      <div class="modal-body">
+        <h2>Customer Testimonial</h2>
+        <p class="testimonial-text"></p>
+        <p class="testimonial-author"></p>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(testimonialModal);
+  
+  
+  testimonialCards.forEach(card => {
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', function() {
+  
+      const testimonialText = this.querySelector('p').textContent;
+      const testimonialAuthor = this.querySelector('h3').textContent;
+  
+      document.querySelector('.testimonial-text').textContent = testimonialText;
+      document.querySelector('.testimonial-author').textContent = testimonialAuthor;
+      
+  
+      testimonialModal.style.display = 'flex';
+    });
+  });
+  
+
+  const closeButton = testimonialModal.querySelector('.close-button');
+  closeButton.addEventListener('click', function() {
+    testimonialModal.style.display = 'none';
+  });
+  
+
+  window.addEventListener('click', function(event) {
+    if (event.target === testimonialModal) {
+      testimonialModal.style.display = 'none';
+    }
+  });
+  
+
+  document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+      testimonialModal.style.display = 'none';
+    }
+  });
+  
+
+  const setupModalTriggers = () => {
+
+    document.querySelectorAll('.blog-card .btn').forEach((btn, index) => {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const modals = [
+          'top-10-travel-tips-modal',
+          'best-destinations-for-2025-modal',
+          'how-to-travel-on-a-budget-modal'
+        ];
+        document.getElementById(modals[index]).style.display = 'flex';
+      });
+    });
+    
+    
+    document.querySelectorAll('.destination-card .btn').forEach((btn, index) => {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const modals = [
+          'chennai-modal',
+          'goa-modal',
+          'tirupati-modal'
+        ];
+        document.getElementById(modals[index]).style.display = 'flex';
+      });
+    });
+    
+    
+    document.querySelectorAll('.modal .close-button').forEach(btn => {
+      btn.addEventListener('click', function() {
+        this.closest('.modal').style.display = 'none';
+      });
+    });
+    
+    document.querySelectorAll('.modal').forEach(modal => {
+      modal.addEventListener('click', function(e) {
+        if (e.target === this) {
+          this.style.display = 'none';
+        }
+      });
+    });
+  };
+  
+  
+  setupModalTriggers();
+});
