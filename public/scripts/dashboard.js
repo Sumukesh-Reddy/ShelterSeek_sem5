@@ -27,16 +27,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     displayEarnings(currentUser.email);
   });
 
-  // Fetch and display listings from backend API
+  // Helper function to make XMLHttpRequest
+  function makeXHRRequest(url, method = 'GET', data = null) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(method, url, true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onload = function() {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch (e) {
+            reject(new Error('Invalid JSON response'));
+          }
+        } else {
+          reject(new Error(`Request failed with status ${xhr.status}: ${xhr.statusText}`));
+        }
+      };
+      xhr.onerror = function() {
+        reject(new Error('Network error occurred'));
+      };
+      if (data && method !== 'GET') {
+        xhr.send(JSON.stringify(data));
+      } else {
+        xhr.send();
+      }
+    });
+  }
+
+  // Fetch and display listings from backend API using XMLHttpRequest
   let hostListings = [];
   try {
-    const response = await fetch('/api/listings');
-    const result = await response.json();
+    const result = await makeXHRRequest('/api/listings');
     if (result.status === 'success') {
       hostListings = result.data.listings.filter(listing => listing.email === currentUser.email);
+    } else {
+      throw new Error(result.message || 'Failed to fetch listings');
     }
   } catch (e) {
-    console.error('Failed to fetch listings', e);
+    console.error('Failed to fetch listings:', e.message);
     showAlert('Failed to load listings. Please try again later.', 'error');
   }
   displayListings(hostListings);
@@ -63,8 +92,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (target.classList.contains('delete-listing-btn')) {
       if (confirm('Are you sure you want to delete this listing?')) {
         try {
-          const response = await fetch(`/api/listings/${listingId}`, { method: 'DELETE' });
-          const result = await response.json();
+          const result = await makeXHRRequest(`/api/listings/${listingId}`, 'DELETE');
           if (result.status === 'success') {
             showAlert('Listing deleted successfully!', 'success');
             target.closest('.listing-card').remove();
@@ -72,6 +100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             showAlert(result.message || 'Failed to delete listing.', 'error');
           }
         } catch (e) {
+          console.error('Failed to delete listing:', e.message);
           showAlert('Failed to delete listing.', 'error');
         }
       }
@@ -81,38 +110,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Function to display bookings
   async function displayBookings(hostEmail) {
     try {
-      const response = await fetch(`/api/bookings/host/${hostEmail}`);
-      const result = await response.json();
+      const result = await makeXHRRequest(`/api/bookings/host/${hostEmail}`);
       if (result.status === 'success') {
         const bookings = result.data.bookings;
         const monthlyBookings = processMonthlyBookings(bookings);
         renderBookingsChart(monthlyBookings);
         displayMonthlyBookingsList(monthlyBookings);
       } else {
-        showAlert('Failed to load bookings.', 'error');
+        throw new Error(result.message || 'Failed to load bookings');
       }
     } catch (e) {
-      console.error('Error fetching bookings:', e);
-      showAlert('Failed to load bookings.', 'error');
+      console.error('Error fetching bookings:', e.message);
+      showAlert('Failed to load bookings. Please try again later.', 'error');
     }
   }
 
   // Function to display earnings
   async function displayEarnings(hostEmail) {
     try {
-      const response = await fetch(`/api/bookings/host/${hostEmail}`);
-      const result = await response.json();
+      const result = await makeXHRRequest(`/api/bookings/host/${hostEmail}`);
       if (result.status === 'success') {
         const bookings = result.data.bookings;
         const monthlyEarnings = processMonthlyEarnings(bookings);
         renderEarningsChart(monthlyEarnings);
         displayMonthlyEarningsList(monthlyEarnings);
       } else {
-        showAlert('Failed to load earnings.', 'error');
+        throw new Error(result.message || 'Failed to load earnings');
       }
     } catch (e) {
-      console.error('Error fetching earnings:', e);
-      showAlert('Failed to load earnings.', 'error');
+      console.error('Error fetching earnings:', e.message);
+      showAlert('Failed to load earnings. Please try again later.', 'error');
     }
   }
 
