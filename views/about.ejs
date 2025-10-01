@@ -209,12 +209,20 @@
             object-fit: cover;
             border: 5px solid rgba(215, 45, 110, 0.1);
             transition: border-color 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
         
         .team-member:hover img {
-            border-color: rgba(215, 45, 110, 0.3);
+            transform: scale(1.2);
+            border-radius: 10%;
+            box-shadow: 0 0.75rem 1.75rem rgba(0,0,0,0.25);
+            cursor: pointer;
         }
         
+          .fade-out {
+            opacity: 0;
+          }
+          
         .team-member h3 {
             margin: 10px 0 5px;
             font-size: 1.4em;
@@ -423,7 +431,7 @@
         
             <div class="team-members">
                 <div class="team-member">
-                    <img src="images/bobby.jpg" alt="M. Sumukesh Reddy">
+                    <img src="images/sumukesh1.jpg" alt="M. Sumukesh Reddy">
                     <h3>M. Sumukesh Reddy</h3>
                     <p class="role">Traveller Experience Lead</p>
                     <p class="bio">
@@ -541,7 +549,27 @@ function animateCount(elementId, targetNumber) {
         element.textContent = Math.round(currentNumber).toLocaleString() + '+';
     }, 1000 / frameRate);
 }
-document.addEventListener('DOMContentLoaded', fetchUserCounts);</script>
+document.addEventListener('DOMContentLoaded', fetchUserCounts);
+let images = ["images/sumukes1.jpg"];
+let currentIndex = 0;
+
+function switchImage() {
+  const img = document.getElementById("bobbyImage");
+
+  img.classList.add("fade-out");
+
+  setTimeout(() => {
+    currentIndex = (currentIndex + 1) % images.length;
+    img.src = images[currentIndex];
+
+    img.classList.remove("fade-out");
+  }, 50); 
+}
+
+setInterval(switchImage, 2000);
+
+  
+  </script>
 </body>
 <footer>
     <%-include('partials/footer')  %>
