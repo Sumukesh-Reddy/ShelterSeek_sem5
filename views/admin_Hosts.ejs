@@ -215,9 +215,11 @@
         <h1>Hosts Management</h1>
         <p class="subtitle">Track hosts and their rooms easily</p>
       </div>
-      <button id="back_admin" onclick="window.location.href='/admin_dashboard'">
-        <i class="fa-solid fa-arrow-left"></i> Back
-      </button>
+      <button id="back_admin">
+  <i class="fa-solid fa-arrow-left"></i> Back
+</button>
+
+
     </div>
 
     <div class="search-section">
@@ -272,6 +274,10 @@
 
   <script>
     // 🔍 Client-side search
+    document.getElementById("back_admin").addEventListener("click", () => {
+    window.location.href = "/admin_index";  // or window.history.back();
+  });
+
     document.getElementById("searchInput").addEventListener("keyup", function() {
       const filter = this.value.toLowerCase();
       const rows = document.querySelectorAll("tbody tr");
