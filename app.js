@@ -16,6 +16,7 @@ const { signUp, fetchUserByEmailPassword, getUsers } = require('./controller/use
 const hostController = require('./controller/hostController');
 const adminController = require('./controller/adminController');
 const { Traveler, Host } = require('./model/usermodel');
+const RoomData = require('./model/Room');
 //const Booking = require('./model/booking');
 const { ObjectId } = mongoose.Types;
 
@@ -148,7 +149,7 @@ const Booking = require('./model/booking')(paymentConnection);
 paymentConnection.on('connected', () => console.log('Connected to payment'));
 paymentConnection.on('error', err => console.error('payment connection error:', err));
 paymentConnection.on('disconnected', () => console.log('Disconnected from payment'));
-
+app.set("trust proxy", 1);
 // Middleware
 app.use(helmet());
 app.use(
@@ -210,12 +211,41 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
 
+const THREE_MONTHS_MS = 1000 * 60 * 60 * 24 * 90;
+async function expireOldHostRequests() {
+  try {
+    const RoomData = hostAdminConnection.collection('RoomData');
+    const RoomDataTraveler = travelerConnection.collection('RoomDataTraveler');
+    const expiryDate = new Date(Date.now() - THREE_MONTHS_MS);
+
+    // Find stale rooms (createdAt older than 3 months) that are not already Rejected
+    const staleRooms = await RoomData
+      .find({ createdAt: { $lte: expiryDate }, status: { $ne: 'Rejected' } }, { projection: { _id: 1 } })
+      .toArray();
+
+    if (staleRooms.length > 0) {
+      const staleIds = staleRooms.map(r => r._id);
+      await RoomData.updateMany(
+        { _id: { $in: staleIds } },
+        { $set: { status: 'Rejected', updatedAt: new Date() } }
+      );
+      // Remove any transferred approved copies from traveler DB
+      await RoomDataTraveler.deleteMany({ _id: { $in: staleIds } });
+    }
+  } catch (err) {
+    console.warn('expireOldHostRequests warning:', err.message);
+  }
+}
+
 // RoomData middleware
 app.use(async (req, res, next) => {
   try {
+    // Enforce expiration before loading data for requests
+    await expireOldHostRequests();
+
     const RoomData = hostAdminConnection.collection('RoomData');
-    const allRooms = await RoomData.find({}, { projection: { likes: 0, booking: 0, reviews: 0, contact: 0, hostId: 0 } }).limit(10).toArray();
-    const pendingRooms = await RoomData.find({ status: 'pending' }, { projection: { likes: 0, booking: 0, reviews: 0, contact: 0, hostId: 0 } }).limit(5).toArray();
+    const allRooms = await RoomData.find({}, { projection: { likes: 0, booking: 0, reviews: 0, contact: 0, hostId: 0 } }).limit(100).toArray();
+    const pendingRooms = await RoomData.find({ status: 'pending' }, { projection: { likes: 0, booking: 0, reviews: 0, contact: 0, hostId: 0 } }).limit(100).toArray();
     
     // Validate and clean image URLs
     const validateImageUrl = async (image) => {
@@ -274,8 +304,8 @@ app.get('/admin_index', async (req, res) => {
   try {
     const RoomData = hostAdminConnection.collection('RoomData');
     const Bookings = paymentConnection.collection('bookings');
-    const newCustomers = await LoginData.find({ accountType: 'traveller' }).sort({ createdAt: -1 }).limit(5).lean();
-    const recentActivities = await RoomData.find({}).sort({ updatedAt: -1 }).limit(5).toArray();
+    const newCustomers = await LoginData.find({ accountType: 'traveller' }).sort({ createdAt: -1 }).limit(100).lean();
+    const recentActivities = await RoomData.find({}).sort({ updatedAt: -1 }).limit(100).toArray();
     const bookings = await Bookings.find({}).sort({ checkIn: -1 }).limit(50).toArray();
 
     const now = new Date();
@@ -284,9 +314,9 @@ app.get('/admin_index', async (req, res) => {
     const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1)); startOfWeek.setHours(0, 0, 0, 0);
     const endOfWeek = new Date(startOfWeek); endOfWeek.setDate(startOfWeek.getDate() + 6); endOfWeek.setHours(23, 59, 59, 999);
 
-    const totalRevenue = (await Bookings.aggregate([{ $match: { amount: { $exists: true } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]).toArray())[0]?.total / 100 || 0;
-    const thisMonthRevenue = (await Bookings.aggregate([{ $match: { checkIn: { $gte: startOfMonth, $lte: endOfMonth }, amount: { $exists: true } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]).toArray())[0]?.total / 100 || 0;
-    const thisWeekRevenue = (await Bookings.aggregate([{ $match: { checkIn: { $gte: startOfWeek, $lte: endOfWeek }, amount: { $exists: true } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]).toArray())[0]?.total / 100 || 0;
+    const totalRevenue = (await Bookings.aggregate([{ $match: { amount: { $exists: true } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]).toArray())[0]?.total  || 0;
+    const thisMonthRevenue = (await Bookings.aggregate([{ $match: { checkIn: { $gte: startOfMonth, $lte: endOfMonth }, amount: { $exists: true } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]).toArray())[0]?.total  || 0;
+    const thisWeekRevenue = (await Bookings.aggregate([{ $match: { checkIn: { $gte: startOfWeek, $lte: endOfWeek }, amount: { $exists: true } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]).toArray())[0]?.total  || 0;
 
     const totalBookings = await Bookings.countDocuments({});
     const thisMonthBookings = await Bookings.countDocuments({ checkIn: { $gte: startOfMonth, $lte: endOfMonth } });
@@ -323,7 +353,6 @@ app.get('/admin_notifications', async (req, res) => {
     res.render('admin_notifications', { activeTab: 'host', users: [], error: error.message });
   }
 });
-app.get('/admin_revenue', renderPage('admin_revenue'));
 app.get('/admin_account', renderPage('admin_account'));
 app.get('/admin_host-requests', async (req, res) => {
   const rooms = req.roomData.allRooms.map(room => ({
@@ -353,6 +382,26 @@ app.get('/admin_host-requests', async (req, res) => {
     status: room.status || 'pending'
   }));
   res.render('admin_host-requests', { hostRequests: rooms || [] });
+});
+// Add this route to your app.js file, near other API routes
+app.get('/api/user-counts', async (req, res) => {
+  try {
+    // Count travelers and hosts separately by filtering by accountType
+    const travelerCount = await Traveler.countDocuments({ accountType: 'traveller' });
+    const hostCount = await Host.countDocuments({ accountType: 'host' });
+    
+    res.json({
+      success: true,
+      travelerCount,
+      hostCount
+    });
+  } catch (error) {
+    console.error('Error fetching user counts:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching user counts'
+    });
+  }
 });
 // Add this route to app.js - preferably near other API routes
 app.get('/api/users', async (req, res) => {
@@ -395,23 +444,24 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
-// Add this route to your app.js file, preferably near other user-related routes
+
 app.get('/api/user/raw', async (req, res) => {
-  try {
-      const { email, accountType } = req.query;
+    try {
+        const { email, accountType } = req.query;
       
       if (!email || !accountType) {
           return res.status(400).json({ 
               status: 'fail', 
               message: 'Email and accountType are required' 
-          });
-      }
+            });
+        }
 
       let user;
       
       if (accountType === 'traveller') {
           user = await Traveler.findOne({ email: email.toLowerCase() });
-      } else if (accountType === 'host') {
+      }  
+    else if (accountType === 'host') {
           user = await Host.findOne({ email: email.toLowerCase() });
       } else {
           return res.status(400).json({ 
@@ -441,6 +491,59 @@ app.get('/api/user/raw', async (req, res) => {
           status: 'error', 
           message: 'Failed to fetch user data' 
       });
+  }
+});
+
+app.get('/admin_hosts', async (req, res) => {
+  try {
+    const hosts = await Host.find({}).lean();
+    const roomCounts = await RoomData.aggregate([
+      { $group: { _id: "$email", count: { $sum: 1 } } }
+    ]);
+
+    const countsMap = {};
+    roomCounts.forEach(rc => {
+      countsMap[rc._id] = rc.count;
+    });
+
+    hosts.forEach(h => {
+      h.roomCount = countsMap[h.email] || 0;
+    });
+
+    res.render('admin_hosts', { hosts });
+  } catch (error) {
+    console.error('Error in admin_hosts:', error);
+    res.render('admin_hosts', { hosts: [], error: error.message });
+  }
+});
+
+
+app.get('/hosts/:id/map', async (req, res) => {
+  try {
+    const hostId = req.params.id;
+    const host = await Host.findById(hostId);
+
+    if (!host) {
+      return res.status(404).send("Host not found");
+    }
+
+    // Fetch this host's rooms (RoomData collection uses host email to match)
+    const rooms = await Room.find({ email: host.email }).lean();
+
+    res.render("host_map", { rooms });
+  } catch (err) {
+    console.error("Error fetching host map:", err);
+    res.status(500).send("Error loading map");
+  }
+});
+app.get('/admin/app', async (req, res) => {
+  try {
+    // Directly get all hosts from DB (since /api/users needs email)
+    const hosts = await Host.find({});
+    res.render('admin_app', { hosts });
+  } catch (err) {
+    console.error("Error fetching hosts:", err.message);
+    res.status(500).send("Error loading hosts");
   }
 });
 // API Routes
@@ -615,6 +718,9 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/host-requests', async (req, res) => {
   try {
+    // Ensure expired items are rejected and cleaned up
+    await expireOldHostRequests();
+
     const validateImageUrl = async (image) => {
       if (!image) return null;
       if (ObjectId.isValid(image.$oid || image)) {
@@ -796,10 +902,14 @@ app.post('/api/host-requests/:id/status', async (req, res) => {
     const room = await RoomData.findOne({ _id: new ObjectId(id) });
     if (!room) return res.status(404).json({ error: 'No document found' });
 
+    // If listing is older than 3 months, force reject regardless of requested status
+    const isExpired = room.createdAt && (new Date(room.createdAt).getTime() <= (Date.now() - THREE_MONTHS_MS));
+    const nextStatus = isExpired ? 'Rejected' : status;
+
     // Update status in RoomData
     const result = await RoomData.updateOne(
       { _id: new ObjectId(id) },
-      { $set: { status, updatedAt: new Date() } }
+      { $set: { status: nextStatus, updatedAt: new Date() } }
     );
     if (result.matchedCount === 0 || result.modifiedCount === 0) {
       return res.status(400).json({ error: 'No changes made' });
@@ -820,7 +930,7 @@ app.post('/api/host-requests/:id/status', async (req, res) => {
     };
     const cleanedImages = (await Promise.all((room.images || []).map(validateImageUrl))).filter(img => img);
 
-    if (status === 'Approved') {
+    if (nextStatus === 'Approved') {
       // Use upsert to update or insert into RoomDataTraveler, matching by _id
       await RoomDataTraveler.updateOne(
         { _id: new ObjectId(id) },
@@ -834,7 +944,7 @@ app.post('/api/host-requests/:id/status', async (req, res) => {
         },
         { upsert: true }
       );
-    } else if (status === 'Rejected') {
+    } else if (nextStatus === 'Rejected') {
       // Delete from RoomDataTraveler regardless of previous status
       await RoomDataTraveler.deleteOne({ _id: new ObjectId(id) });
     }
@@ -859,7 +969,8 @@ app.post('/api/host-requests/:id/status', async (req, res) => {
 
     res.json({
       message: 'Status updated',
-      status,
+      status: nextStatus,
+      expired: !!isExpired,
       rooms: cleanedUpdatedRooms.map((room) => ({
         _id: room._id?.toString(),
         name: room.name || 'Unknown',
